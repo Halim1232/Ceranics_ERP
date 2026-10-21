@@ -1,0 +1,103 @@
+-- template_seed.sql : shudhu reference data
+SET NAMES utf8mb4;
+SET FOREIGN_KEY_CHECKS=0;
+
+INSERT INTO `erp_menus` (`id`,`menu_name`,`parent_id`,`route_link`,`icon`,`order_no`,`status`,`form_path`,`icon_class`,`sequence`) VALUES
+('1','Purchase','0','#purchase','fa-truck-ramp-box','1','Active',NULL,NULL,'0'),
+('2','Sales','0','#sales','fa-file-invoice-dollar','2','Active',NULL,NULL,'0'),
+('3','Transaction','0','#transaction','fa-right-left','3','Active',NULL,NULL,'0'),
+('4','Store Management','0','#store','fa-warehouse','4','Active',NULL,NULL,'0'),
+('5','Accounts','0','#accounts','fa-wallet','6','Active',NULL,NULL,'0'),
+('6','Report','0','#report','fa-chart-pie','7','Active',NULL,NULL,'0'),
+('7','User & Employee','0','#hrm','fa-users-gear','8','Active',NULL,NULL,'0'),
+('8','Settings','0','#settings','fa-gear','9','Active',NULL,NULL,'0'),
+('9','Supplier List','1','purchase/supplier_list.php','fa-user-friends','1','Active',NULL,NULL,'0'),
+('10','Purchase Received (GRN)','1','purchase/purchase_grn.php','fa-file-download','2','Active',NULL,NULL,'0'),
+('11','Purchase Return','1','purchase/purchase_return.php','fa-undo-alt','3','Active',NULL,NULL,'0'),
+('12','Creditor List','1','purchase/creditor_list.php','fa-list-alt','4','Active',NULL,NULL,'0'),
+('13','Customer List','2','sales/customer_list.php','fa-users','1','Active',NULL,NULL,'0'),
+('14','Sales Invoice','2','Sales/sales_invoice_list.php','fa-file-invoice-dollar','2','Active',NULL,NULL,'0'),
+('15','Delivery Challan','2','sales/delivery_challan.php','fa-truck','3','Active',NULL,NULL,'0'),
+('16','Sales Return','2','sales/sales_return.php','fa-backward','4','Active',NULL,NULL,'0'),
+('17','Debtor List','2','sales/debtor_list.php','fa-address-book','5','Active',NULL,NULL,'0'),
+('18','Collection Voucher','3','transaction/transaction.php?type=collection','fa-hand-holding-dollar','1','Active',NULL,NULL,'0'),
+('19','Payment Voucher','3','transaction/transaction.php?type=payment','fa-money-bill-transfer','2','Active',NULL,NULL,'0'),
+('20','Others Income','3','transaction/transaction.php?type=income','fa-arrow-trend-up','4','Active',NULL,NULL,'0'),
+('21','Daily Expenses','3','transaction/transaction.php?type=expense','fa-receipt','5','Active',NULL,NULL,'0'),
+('22','Adjustment (Journal)','3','transaction/transaction.php?type=journal','fa-scale-balanced','6','Active',NULL,NULL,'0'),
+('23','Current Stock','4','store_management/current_stock.php','fa-layer-group','1','Active',NULL,NULL,'0'),
+('24','Stock Value','4','store_management/stock_value.php','fa-tags','2','Active',NULL,NULL,'0'),
+('25','Stock Transfer','4','store_management/stock_transfer.php','fa-dolly','3','Active',NULL,NULL,'0'),
+('26','Inventory','0','#','fa-warehouse','5','Active',NULL,NULL,'0'),
+('27','Chart of Accounts','5','accounts/chart_of_accounts.php','fa-sitemap','1','Active',NULL,NULL,'0'),
+('28','General Ledger','5','Accounts/general_ledger.php','fa-book','2','Active',NULL,NULL,'0'),
+('29','Trial Balance','5','accounts/trial_balance.php','fa-balance-scale','3','Active',NULL,NULL,'0'),
+('30','Profit & Loss Statement','5','accounts/profit_loss.php','fa-percent','4','Active',NULL,NULL,'0'),
+('31','Balance Sheet','5','accounts/balance_sheet.php','fa-file-contract','5','Active',NULL,NULL,'0'),
+('32','Daily Sales Report','6','report/daily_sales_report.php','fa-chart-bar','1','Active',NULL,NULL,'0'),
+('33','Purchase Report','6','report/purchase_report.php','fa-chart-area','2','Active',NULL,NULL,'0'),
+('34','Customer Ledger Statement','6','report/customer_ledger.php','fa-user-clock','3','Active',NULL,NULL,'0'),
+('35','Supplier Ledger Statement','6','report/supplier_ledger.php','fa-handshake','4','Active',NULL,NULL,'0'),
+('36','Stock Movement Register','6','report/stock_movement.php','fa-history','5','Active',NULL,NULL,'0'),
+('37','Employee Designation','7','user_&_employee/employee_designation.php','fa-briefcase','1','Active',NULL,NULL,'0'),
+('38','Employee Master Info','7','user_&_Employee/employee_list.php','fa-id-card','2','Active',NULL,NULL,'0'),
+('39','System User Registry','7','user_&_employee/system_user.php','fa-user-shield','3','Active',NULL,NULL,'0'),
+('40','Role Permissions Matrix','7','user_&_employee/role_permission.php','fa-key','4','Active',NULL,NULL,'0'),
+('41','Company Profile Setup','8','Settings/company_profile.php','fa-building','1','Active',NULL,NULL,'0'),
+('42','Multi-Unit Conversion Setup','8','Settings/multi_unit_conversion.php','fa-calculator','2','Active',NULL,NULL,'0'),
+('43','Branch / Factory Premises','8','Settings/branch_factory.php','fa-map-marked-alt','3','Active',NULL,NULL,'0'),
+('44','Database Backup Utility','8','Settings/db_backup.php','fa-database','4','Active',NULL,NULL,'0'),
+('45','Product','0','#product','fa-cubes','0','Active',NULL,NULL,'0'),
+('46','Product List','45','product/product_list.php','fa-list','1','Active',NULL,NULL,'0'),
+('47','Product Group','45','product/product_group.php','fa-layer-group','2','Active',NULL,NULL,'0'),
+('48','Product Category','45','product/product_category.php','fa-tags','3','Active',NULL,NULL,'0'),
+('49','Product Brand','45','product/product_brand.php','fa-copyright','4','Active',NULL,NULL,'0'),
+('50','Product Size','45','product/product_size.php','fa-ruler-combined','5','Active',NULL,NULL,'0'),
+('51','Product Color','45','product/product_color.php','fa-palette','6','Active',NULL,NULL,'0'),
+('52','Product Unit','45','product/product_unit.php','fa-balance-scale','7','Active',NULL,NULL,'0'),
+('53','Product Grade','45','product/product_grade.php','fa-star','8','Active',NULL,NULL,'0'),
+('54','Bank & Cash Transfer','3','transaction/transaction.php?type=transfer','fa-right-left','3','Active',NULL,NULL,'0'),
+('55','Daily Transaction','6','Report/daily_transaction.php','fa-money-bill-wave','20','Active',NULL,NULL,'0'),
+('56','Current Stock','6','store_management/current_stock.php','fa-boxes-stacked','21','Active',NULL,NULL,'0'),
+('57','Purchase GRN (Factory)','1','Purchase/purchase_grn_factory.php','fa-industry','5','Active',NULL,NULL,'0'),
+('58','Sales Return','2','sales/sales_return.php','fa-rotate-left','20','Active',NULL,NULL,'0'),
+('59','Warehouse / Godown Setup','8','settings/warehouse_setup.php','fa-warehouse','30','Active',NULL,NULL,'0'),
+('60','Inventory Summary','26','store_management/inventory.php','fa-boxes-stacked','1','Active',NULL,NULL,'0'),
+('61','Product Short Adjust','26','store_management/stock_adjustment.php?type=short','fa-circle-minus','2','Active',NULL,NULL,'0'),
+('62','Product Over Adjust','26','store_management/stock_adjustment.php?type=over','fa-circle-plus','3','Active',NULL,NULL,'0'),
+('63','Product Damage','26','store_management/stock_adjustment.php?type=damage','fa-triangle-exclamation','4','Active',NULL,NULL,'0'),
+('64','Physical Inventory','26','store_management/physical_inventory.php','fa-clipboard-check','5','Active',NULL,NULL,'0');
+
+INSERT INTO `erp_roles` (`id`,`role_name`,`description`,`is_system`,`status`,`created_at`) VALUES
+('1','admin','Company Admin','1','Active',NOW()),
+('2','superadmin','Super Admin (provider)','1','Active',NOW());
+
+-- erp_role_permissions: notun company te kono role/permission seed kora hoy na (Super Admin / Company Admin nijer moto banabe)
+
+INSERT INTO `erp_chart_of_accounts` (`id`,`account_code`,`account_name`,`account_type`,`parent_id`,`is_group`,`fund_type`,`opening_balance`,`status`,`created_at`) VALUES
+('1','1000','Assets','Asset','0','1',NULL,'0','Active','2026-10-08 10:51:05'),
+('2','2000','Liabilities','Liability','0','1',NULL,'0','Active','2026-10-08 10:51:05'),
+('3','3000','Equity','Equity','0','1',NULL,'0','Active','2026-10-08 10:51:05'),
+('4','4000','Income','Income','0','1',NULL,'0','Active','2026-10-08 10:51:05'),
+('5','5000','Expenses','Expense','0','1',NULL,'0','Active','2026-10-08 10:51:05'),
+('6','1001','Cash in Hand','Asset','1','0','Cash','0','Active','2026-10-08 10:51:05'),
+('7','1002','Bank Accounts','Asset','1','0','Bank','0','Active','2026-10-08 10:51:05'),
+('8','1003','Bkash/Nagad','Asset','1','0','MFS','0','Active','2026-10-08 10:51:05'),
+('9','1101','Accounts Receivable','Asset','1','0',NULL,'0','Active','2026-10-08 10:51:05'),
+('10','1201','Inventory (Stock)','Asset','1','0',NULL,'0','Active','2026-10-08 10:51:05'),
+('11','2001','Accounts Payable','Liability','2','0',NULL,'0','Active','2026-10-08 10:51:05'),
+('12','3001','Owner Capital','Equity','3','0',NULL,'0','Active','2026-10-08 10:51:05'),
+('13','4001','Sales Revenue','Income','4','0',NULL,'0','Active','2026-10-08 10:51:05'),
+('14','4002','Other Income','Income','4','0',NULL,'0','Active','2026-10-08 10:51:05'),
+('15','5001','Cost of Goods Sold','Expense','5','0',NULL,'0','Active','2026-10-08 10:51:05'),
+('16','5002','Labor / Transport','Expense','5','0',NULL,'0','Active','2026-10-08 10:51:05'),
+('17','5003','Discount Allowed','Expense','5','0',NULL,'0','Active','2026-10-08 10:51:05'),
+('18','5004','General Expense','Expense','5','0',NULL,'0','Active','2026-10-08 10:51:05'),
+('20','5005','Salary Expenses','Expense','5','0',NULL,'0','Active','2026-10-12 17:14:09');
+
+INSERT INTO `erp_fund_accounts` (`id`,`account_name`,`account_type`,`opening_balance`,`status`,`created_at`) VALUES
+('1','Cash in Hand','CASH','0','Active','2026-10-06 18:43:05'),
+('2','Bank Accounts','BANK','0','Active','2026-10-06 18:43:05'),
+('3','Bkash/Nagad','MFS','0','Active','2026-10-06 18:43:05');
+
+SET FOREIGN_KEY_CHECKS=1;
