@@ -272,7 +272,7 @@ while ($grn_result && $r = mysqli_fetch_assoc($grn_result)) {
         .panel-header { background: #ececef; padding: 8px 15px; font-size: 13px; font-weight: bold; color: #495057; border-bottom: 1px solid #ced4da; }
         .panel-body { padding: 15px; }
         .filter-panel { background: #fff; padding: 12px; border: 1px solid #cddc39; border-radius: 4px; margin-bottom: 12px; }
-        .filter-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 15px; margin-bottom: 12px; }
+        .filter-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px 15px; margin-bottom: 12px; }
         .filter-grid .form-group label { font-size: 13px; font-weight: bold; color: #333; }
         .list-table td { padding: 8px; }
         .list-table tbody tr:hover td { background: #f1f5f9; }
@@ -459,6 +459,12 @@ while ($grn_result && $r = mysqli_fetch_assoc($grn_result)) {
             <div class="form-group"><label>Supplier</label><input type="text" id="flt_supplier" class="form-control" oninput="runGrnLiveFilter()" placeholder="Search supplier.."></div>
             <div class="form-group"><label>Date From</label><input type="date" id="flt_date_from" class="form-control" onchange="runGrnLiveFilter()"></div>
             <div class="form-group"><label>Date To</label><input type="date" id="flt_date_to" class="form-control" onchange="runGrnLiveFilter()"></div>
+            <div class="form-group"><label>Branch</label>
+                <select id="flt_branch" class="form-control" onchange="runGrnLiveFilter()">
+                    <option value="">All Branch</option>
+                    <?php $bopts = array_values(array_unique(array_column($grn_rows, 'branch'))); sort($bopts);
+                    foreach ($bopts as $bo) echo '<option value="' . htmlspecialchars($bo, ENT_QUOTES) . '">' . htmlspecialchars($bo) . '</option>'; ?>
+                </select></div>
         </div>
         <table class="grid-table list-table" id="grnGridTable">
             <thead><tr>
@@ -468,7 +474,7 @@ while ($grn_result && $r = mysqli_fetch_assoc($grn_result)) {
             <tbody>
             <?php if ($grn_rows) { $sl = 1; foreach ($grn_rows as $r) { ?>
                 <tr id="grn_row_<?php echo $r['id']; ?>" class="grn-data-row" style="cursor:pointer;" onclick="selectGrnRow(this, <?php echo $r['id']; ?>)"
-                    data-grn="<?php echo htmlspecialchars($r['no'], ENT_QUOTES); ?>" data-supplier="<?php echo htmlspecialchars($r['sup'], ENT_QUOTES); ?>" data-date="<?php echo htmlspecialchars((string)$r['date'], ENT_QUOTES); ?>">
+                    data-grn="<?php echo htmlspecialchars($r['no'], ENT_QUOTES); ?>" data-supplier="<?php echo htmlspecialchars($r['sup'], ENT_QUOTES); ?>" data-date="<?php echo htmlspecialchars((string)$r['date'], ENT_QUOTES); ?>" data-branch="<?php echo htmlspecialchars((string)$r['branch'], ENT_QUOTES); ?>" data-total="<?php echo round($r['total'], 2); ?>" data-paid="<?php echo round($r['paid'], 2); ?>" data-due="<?php echo round($r['due'], 2); ?>">
                     <td style="text-align:center;"><input type="checkbox" class="grn-row-select" value="<?php echo $r['id']; ?>" onclick="event.stopPropagation(); selectGrnRow(this.closest('tr'), <?php echo $r['id']; ?>)"></td>
                     <td style="text-align:center;" class="sl"><?php echo $sl++; ?></td>
                     <td style="font-weight:bold;color:#2e7d32;"><?php echo htmlspecialchars($r['no']); ?></td>
@@ -481,7 +487,7 @@ while ($grn_result && $r = mysqli_fetch_assoc($grn_result)) {
                 </tr>
             <?php } ?>
                 <tr class="total-row"><td colspan="6" style="text-align:center;color:#2e7d32;">Grand Total</td>
-                    <td class="r"><?php echo number_format($sum_total, 2); ?></td><td class="r"><?php echo number_format($sum_paid, 2); ?></td><td class="r"><?php echo number_format($sum_due, 2); ?></td></tr>
+                    <td class="r" id="gt_total"><?php echo number_format($sum_total, 2); ?></td><td class="r" id="gt_paid"><?php echo number_format($sum_paid, 2); ?></td><td class="r" id="gt_due"><?php echo number_format($sum_due, 2); ?></td></tr>
             <?php } else echo "<tr><td colspan='9' style='text-align:center;padding:15px;color:#777;'>কোনো GRN পাওয়া যায়নি। New চাপুন।</td></tr>"; ?>
             </tbody>
         </table>
@@ -702,14 +708,20 @@ function openSupplierModal() { document.getElementById("supplierModalWindow").st
 function closeSupplierModal() { document.getElementById("supplierModalWindow").style.display = "none"; }
 function runGrnLiveFilter() {
     var no = document.getElementById('flt_grn_no').value.toUpperCase().trim(), su = document.getElementById('flt_supplier').value.toUpperCase().trim(),
-        from = document.getElementById('flt_date_from').value, to = document.getElementById('flt_date_to').value, sl = 1;
+        from = document.getElementById('flt_date_from').value, to = document.getElementById('flt_date_to').value,
+        br = document.getElementById('flt_branch').value, sl = 1, tt = 0, tp = 0, td = 0;
     document.querySelectorAll('.grn-data-row').forEach(function(r) {
         var ok = true, d = r.getAttribute('data-date');
         if (no && r.getAttribute('data-grn').toUpperCase().indexOf(no) === -1) ok = false;
         if (su && r.getAttribute('data-supplier').toUpperCase().indexOf(su) === -1) ok = false;
+        if (br && r.getAttribute('data-branch') !== br) ok = false;
         if (from && d < from) ok = false; if (to && d > to) ok = false;
-        r.style.display = ok ? '' : 'none'; if (ok) r.querySelector('.sl').textContent = sl++;
+        r.style.display = ok ? '' : 'none';
+        if (ok) { r.querySelector('.sl').textContent = sl++; tt += parseFloat(r.getAttribute('data-total')) || 0; tp += parseFloat(r.getAttribute('data-paid')) || 0; td += parseFloat(r.getAttribute('data-due')) || 0; }
     });
+    var f = function (n) { return n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}); };
+    var a = document.getElementById('gt_total'), b = document.getElementById('gt_paid'), c = document.getElementById('gt_due');
+    if (a) a.textContent = f(tt); if (b) b.textContent = f(tp); if (c) c.textContent = f(td);
 }
 
 function recalcPayment() {

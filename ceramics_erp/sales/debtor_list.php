@@ -5,6 +5,38 @@ include('../balance_functions.php');   // customer_prev_balance() — ভাউ�
 
 function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES); }
 
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
+if (empty($_SESSION['dl_csrf'])) { $_SESSION['dl_csrf'] = bin2hex(random_bytes(16)); }
+$dl_csrf = $_SESSION['dl_csrf'];
+
+// কালেকশন তারিখের কলাম (একবারই তৈরি হয়, পুরনো ডেটা অপরিবর্তিত)
+try {
+    $cc = mysqli_query($conn, "SHOW COLUMNS FROM erp_customers LIKE 'next_collect_date'");
+    if ($cc && mysqli_num_rows($cc) == 0) mysqli_query($conn, "ALTER TABLE erp_customers ADD COLUMN next_collect_date DATE NULL DEFAULT NULL");
+} catch (Throwable $e) { error_log('next_collect_date: ' . $e->getMessage()); }
+
+// ---------- কালেকশন তারিখ সেভ (AJAX) ----------
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'set_collect_date') {
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        if (!hash_equals($dl_csrf, (string)($_POST['csrf'] ?? ''))) throw new Exception('Invalid token');
+        $cid = (int)($_POST['customer_id'] ?? 0);
+        $d   = trim((string)($_POST['date'] ?? ''));
+        if ($cid <= 0) throw new Exception('Customer পাওয়া যায়নি');
+        if ($d !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) throw new Exception('তারিখ ঠিক নয়');
+        if (current_branch()) {   // ব্রাঞ্চ ইউজার: শুধু নিজের ব্রাঞ্চের কাস্টমার
+            $ok = mysqli_fetch_row(mysqli_query($conn, "SELECT 1 FROM sales_invoice_master WHERE customer_id=$cid" . branch_sql('branch_name') . " LIMIT 1"));
+            if (!$ok) throw new Exception('এই কাস্টমারে আপনার অনুমতি নেই');
+        }
+        $dv = ($d === '') ? null : $d;
+        $st = mysqli_prepare($conn, "UPDATE erp_customers SET next_collect_date=? WHERE id=?");
+        mysqli_stmt_bind_param($st, 'si', $dv, $cid);
+        mysqli_stmt_execute($st);
+        echo json_encode(['ok' => true, 'date' => $d]);
+    } catch (Throwable $ex) { echo json_encode(['ok' => false, 'msg' => $ex->getMessage()]); }
+    exit;
+}
+
 // ---------- ফিল্টার ----------
 $showIn = $_GET['show'] ?? 'due';
 $show = in_array($showIn, ['due', 'advance', 'all'], true) ? $showIn : 'due';   // ডিফল্ট: শুধু বকেয়া
@@ -21,7 +53,7 @@ if (current_branch()) {   // ব্রাঞ্চ ইউজার: শুধু
     $bc = "id IN (SELECT customer_id FROM sales_invoice_master WHERE 1=1" . branch_sql('branch_name') . ")";
     $where = ($where === '') ? "WHERE $bc" : $where . " AND $bc";
 }
-$stmt = $conn->prepare("SELECT id, customer_code, customer_name, address, phone FROM erp_customers $where ORDER BY customer_name");
+$stmt = $conn->prepare("SELECT id, customer_code, customer_name, address, phone, next_collect_date FROM erp_customers $where ORDER BY customer_name");
 if ($params) $stmt->bind_param($types, ...$params);
 $stmt->execute();
 $res = $stmt->get_result();
@@ -43,6 +75,9 @@ while ($r = $res->fetch_assoc()) {
     $total += $bal;
 }
 $stmt->close();
+
+$today = date('Y-m-d'); $due_cnt = 0;   // আজ বা তার আগের কালেকশন তারিখ (বকেয়া আছে)
+foreach ($rows as $r2) { if (!empty($r2['next_collect_date']) && $r2['next_collect_date'] <= $today && $r2['bal'] > 0.005) $due_cnt++; }
 
 if ($sort == 'name') usort($rows, function ($a, $b) { return strcasecmp($a['customer_name'], $b['customer_name']); });
 else usort($rows, function ($a, $b) use ($show) { return $show == 'advance' ? $a['bal'] <=> $b['bal'] : $b['bal'] <=> $a['bal']; });
@@ -76,10 +111,22 @@ $showLabel = ['due' => 'Outstanding (Due)', 'advance' => 'Advance (Credit Balanc
     .r { text-align: right; } .c { text-align: center; }
     .grand td { background: #dbebe7 !important; font-weight: bold; border-top: 2px solid #2e7d32; }
     .print-head { display: none; text-align: center; margin-bottom: 10px; }
+    .cd { white-space: nowrap; }
+    .cd .cdate { height: 26px; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 12px; padding: 0 4px; }
+    .cd .sv { height: 26px; width: 28px; border: none; border-radius: 4px; background: #cfd8dc; color: #fff; cursor: pointer; }
+    .cd .sv.dirty { background: #2e7d32; }
+    .cd .msg { font-size: 11px; color: #2e7d32; margin-left: 4px; }
+    .cd .badge { display: block; font-size: 11px; font-weight: bold; margin-top: 2px; }
+    .pr-only { display: none; }
+    .grid-table tbody tr.ov td { background: #fdecea !important; }
+    .grid-table tbody tr.today td { background: #fff4e0 !important; }
     @media print {
         .filter-panel { display: none; }
         body { background: #fff; padding: 0; }
         .print-head { display: block; }
+        .cd .cdate, .cd .sv, .cd .msg { display: none; }
+        .pr-only { display: inline !important; }
+        .grid-table tbody tr.ov td, .grid-table tbody tr.today td { background: #fff !important; }
         tr { break-inside: avoid; }
     }
 </style>
@@ -117,6 +164,7 @@ $showLabel = ['due' => 'Outstanding (Due)', 'advance' => 'Advance (Credit Balanc
 <div class="cards">
     <div class="card"><div class="t">Customers</div><div class="v"><?php echo count($rows); ?></div></div>
     <div class="card" style="border-left-color:#d32f2f;"><div class="t">Net Receivable (Balance)</div><div class="v" style="color:#d32f2f;"><?php echo number_format($total, 2); ?></div></div>
+    <div class="card" style="border-left-color:#e65100;"><div class="t">Collection Due (আজ + ওভারডিউ)</div><div class="v" style="color:#e65100;"><?php echo (int)$due_cnt; ?> জন</div></div>
 </div>
 
 <div class="title">Debtor List - <?php echo h($showLabel); ?></div>
@@ -125,12 +173,17 @@ $showLabel = ['due' => 'Outstanding (Due)', 'advance' => 'Advance (Credit Balanc
     <thead>
         <tr>
             <th class="c" style="width:45px;">SL No</th><th style="width:90px;">Code</th><th>Customer Name</th><th>Address</th><th style="width:110px;">Mobile</th>
-            <th class="r" style="width:140px;">Balance</th><th class="c" style="width:95px;">Last Invoice</th>
+            <th class="r" style="width:140px;">Balance</th><th class="c" style="width:95px;">Last Invoice</th><th class="c" style="width:215px;">Collection Date</th>
         </tr>
     </thead>
     <tbody>
-    <?php if ($rows) { $sl = 1; foreach ($rows as $r) { ?>
-        <tr>
+    <?php if ($rows) { $sl = 1; foreach ($rows as $r) {
+        $cd = $r['next_collect_date'] ?? null; $rc = ''; $late = 0;
+        if ($cd && $r['bal'] > 0.005) {
+            $late = (int)floor((strtotime($today) - strtotime($cd)) / 86400);
+            $rc = ($cd < $today) ? 'ov' : (($cd === $today) ? 'today' : '');
+        } ?>
+        <tr class="<?php echo $rc; ?>" data-id="<?php echo (int)$r['id']; ?>">
             <td class="c"><?php echo $sl++; ?></td>
             <td><?php echo h($r['customer_code']); ?></td>
             <td style="font-weight:bold;color:#2b579a;"><?php echo h($r['customer_name']); ?></td>
@@ -138,18 +191,47 @@ $showLabel = ['due' => 'Outstanding (Due)', 'advance' => 'Advance (Credit Balanc
             <td><?php echo h($r['phone']); ?></td>
             <td class="r" style="font-weight:bold;color:<?php echo $r['bal'] > 0 ? '#d32f2f' : '#28a745'; ?>;"><?php echo number_format($r['bal'], 2); ?><?php echo $r['bal'] < 0 ? ' (Adv)' : ''; ?></td>
             <td class="c"><?php echo $r['last_date'] ? date('d-M-Y', strtotime($r['last_date'])) : '-'; ?></td>
+            <td class="c cd">
+                <input type="date" class="cdate" value="<?php echo h($cd); ?>" aria-label="Collection date">
+                <button type="button" class="sv" title="সেভ" onclick="saveCd(this)"><i class="fa-solid fa-check"></i></button><span class="msg"></span>
+                <span class="pr-only"><?php echo $cd ? date('d-M-Y', strtotime($cd)) : '-'; ?></span>
+                <span class="badge" style="color:<?php echo $rc === 'ov' ? '#b42318' : '#b45309'; ?>;"><?php echo $rc === 'ov' ? $late . ' দিন ওভারডিউ' : ($rc === 'today' ? 'আজ আদায়ের তারিখ' : ''); ?></span>
+            </td>
         </tr>
     <?php } ?>
         <tr class="grand">
             <td colspan="5" class="c">Grand Total</td>
             <td class="r"><?php echo number_format($total, 2); ?></td>
-            <td></td>
+            <td></td><td></td>
         </tr>
     <?php } else { ?>
-        <tr><td colspan="7" class="c" style="padding:15px;color:#777;">এই ফিল্টারে কোনো কাস্টমার পাওয়া যায়নি।</td></tr>
+        <tr><td colspan="8" class="c" style="padding:15px;color:#777;">এই ফিল্টারে কোনো কাস্টমার পাওয়া যায়নি।</td></tr>
     <?php } ?>
     </tbody>
 </table>
 
+<script>
+var TODAY = '<?php echo $today; ?>', DL_CSRF = '<?php echo $dl_csrf; ?>';
+document.querySelectorAll('.cdate').forEach(function (i) {
+    i.addEventListener('input', function () { i.parentNode.querySelector('.sv').classList.add('dirty'); });
+});
+function saveCd(btn) {
+    var td = btn.parentNode, tr = btn.closest('tr'), inp = td.querySelector('.cdate'), msg = td.querySelector('.msg');
+    var fd = new FormData();
+    fd.append('action', 'set_collect_date'); fd.append('csrf', DL_CSRF);
+    fd.append('customer_id', tr.getAttribute('data-id')); fd.append('date', inp.value);
+    msg.textContent = '...';
+    fetch(location.href, { method: 'POST', body: fd }).then(function (r) { return r.json(); }).then(function (d) {
+        if (!d.ok) { msg.style.color = '#b42318'; msg.textContent = d.msg || 'সেভ হয়নি'; return; }
+        msg.style.color = '#2e7d32'; msg.textContent = d.date ? 'সেভ হয়েছে' : 'মুছে গেছে';
+        btn.classList.remove('dirty');
+        tr.classList.remove('ov', 'today');
+        var b = td.querySelector('.badge'); b.textContent = '';
+        if (d.date && d.date < TODAY) { tr.classList.add('ov'); b.style.color = '#b42318'; b.textContent = Math.round((new Date(TODAY) - new Date(d.date)) / 86400000) + ' দিন ওভারডিউ'; }
+        else if (d.date && d.date === TODAY) { tr.classList.add('today'); b.style.color = '#b45309'; b.textContent = 'আজ আদায়ের তারিখ'; }
+        td.querySelector('.pr-only').textContent = d.date ? d.date.split('-').reverse().join('-') : '-';
+    }).catch(function () { msg.style.color = '#b42318'; msg.textContent = 'সেভ হয়নি'; });
+}
+</script>
 </body>
 </html>

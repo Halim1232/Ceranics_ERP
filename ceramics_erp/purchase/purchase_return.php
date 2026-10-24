@@ -340,7 +340,7 @@ if ($show_form) {
 // ---------- তালিকা ----------
 $list = []; $sum_total = 0; $sum_refund = 0; $sum_disc = 0;
 if (!$show_form) {
-    $res = mysqli_query($conn, "SELECT r.id, r.return_no, r.return_date, r.grn_no, r.total_amount, r.discount_amount, r.refund_amount, s.supplier_name
+    $res = mysqli_query($conn, "SELECT r.id, r.return_no, r.return_date, r.grn_no, r.total_amount, r.discount_amount, r.refund_amount, r.branch_name, s.supplier_name
         FROM erp_purchase_return r LEFT JOIN erp_suppliers s ON s.id = r.supplier_id WHERE 1=1" . branch_sql('r.branch_name') . " ORDER BY r.id DESC");
     while ($res && $r = mysqli_fetch_assoc($res)) {
         $list[] = $r; $sum_total += (float)$r['total_amount']; $sum_refund += (float)$r['refund_amount']; $sum_disc += (float)$r['discount_amount'];
@@ -375,7 +375,7 @@ if (!$show_form) {
     .r { text-align: right; }
     .ro { background: #f5f5f5; }
     .total-row td { background: #dbebe7 !important; font-weight: bold; border-top: 2px solid #2e7d32; }
-    .filter-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 15px; margin-bottom: 12px; }
+    .filter-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px 15px; margin-bottom: 12px; }
     .summary-wrapper { display: flex; justify-content: flex-end; margin-top: 8px; gap: 20px; }
     .summary-box { width: 390px; background: #fafafa; border: 1px solid #cbd5e1; border-radius: 4px; padding: 10px; }
     /* ডান পাশে ফিক্সড সামারি বক্স (Sales Invoice এর মতো) */
@@ -411,6 +411,12 @@ if (!$show_form) {
             <div class="form-group"><label>Supplier</label><input type="text" id="f_sup" class="form-control" oninput="runFilter()" placeholder="Search supplier.."></div>
             <div class="form-group"><label>Date From</label><input type="date" id="f_from" class="form-control" onchange="runFilter()"></div>
             <div class="form-group"><label>Date To</label><input type="date" id="f_to" class="form-control" onchange="runFilter()"></div>
+            <div class="form-group"><label>Branch</label>
+                <select id="f_branch" class="form-control" onchange="runFilter()">
+                    <option value="">All Branch</option>
+                    <?php $bopts = array_values(array_unique(array_filter(array_column($list, 'branch_name')))); sort($bopts);
+                    foreach ($bopts as $bo) echo '<option value="' . h($bo) . '">' . h($bo) . '</option>'; ?>
+                </select></div>
         </div>
         <table class="grid-table list-table" id="prTable">
             <thead><tr>
@@ -420,7 +426,7 @@ if (!$show_form) {
             <tbody>
             <?php if ($list) { $sl = 1; foreach ($list as $r) { $adj = (float)$r['total_amount'] - (float)$r['discount_amount'] - (float)$r['refund_amount']; ?>
                 <tr class="g-row" style="cursor:pointer;" onclick="selRow(this, <?php echo (int)$r['id']; ?>)"
-                    data-no="<?php echo h($r['return_no'] . ' ' . $r['grn_no']); ?>" data-sup="<?php echo h($r['supplier_name']); ?>" data-date="<?php echo h($r['return_date']); ?>">
+                    data-no="<?php echo h($r['return_no'] . ' ' . $r['grn_no']); ?>" data-sup="<?php echo h($r['supplier_name']); ?>" data-date="<?php echo h($r['return_date']); ?>" data-branch="<?php echo h($r['branch_name']); ?>">
                     <td style="text-align:center;"><input type="checkbox" class="chk" onclick="event.stopPropagation(); selRow(this.closest('tr'), <?php echo (int)$r['id']; ?>)"></td>
                     <td style="text-align:center;" class="sl"><?php echo $sl++; ?></td>
                     <td style="font-weight:bold;color:#c0392b;"><?php echo h($r['return_no']); ?></td>
@@ -458,11 +464,12 @@ function delSel()   {
     if (confirm('Purchase Return মুছে ফেলতে চান? মাল আবার স্টকে যোগ হবে ও সাপ্লায়ারের হিসাবও সংশোধিত হবে।')) { document.getElementById('delId').value = selId; document.getElementById('delForm').submit(); }
 }
 function runFilter() {
-    var no = f_no.value.toUpperCase().trim(), su = f_sup.value.toUpperCase().trim(), from = f_from.value, to = f_to.value, sl = 1;
+    var no = f_no.value.toUpperCase().trim(), su = f_sup.value.toUpperCase().trim(), from = f_from.value, to = f_to.value, br = f_branch.value, sl = 1;
     document.querySelectorAll('.g-row').forEach(function (r) {
         var ok = true, d = r.getAttribute('data-date');
         if (no && r.getAttribute('data-no').toUpperCase().indexOf(no) === -1) ok = false;
         if (su && r.getAttribute('data-sup').toUpperCase().indexOf(su) === -1) ok = false;
+        if (br && r.getAttribute('data-branch') !== br) ok = false;
         if (from && d < from) ok = false; if (to && d > to) ok = false;
         r.style.display = ok ? '' : 'none'; if (ok) r.querySelector('.sl').textContent = sl++;
     });

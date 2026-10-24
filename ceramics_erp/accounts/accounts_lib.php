@@ -4,7 +4,7 @@
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
 if (empty($_SESSION['user_id'])) { http_response_code(401); exit('Unauthorized'); }   // লগইন ছাড়া নয়
 if (!isset($conn) || !($conn instanceof mysqli)) {
-    include __DIR__ . '/../config.php';   // tenant er $conn toiri kore
+    include __DIR__ . '/../config.php';   // require_once নয়: access.php আগেই লোকাল স্কোপে লোড করে ফেলেছে, তাই গ্লোবাল $conn পেতে প্লেইন include লাগবে
 }
 
 function n2($v) { return number_format((float)$v, 2); }
@@ -171,9 +171,18 @@ function acc_sync_fund_journal($conn) {
         $q = mysqli_query($conn, "SELECT * FROM erp_fund_ledger ORDER BY id ASC");
         while ($q && $r = mysqli_fetch_assoc($q)) $groups[$r['ref_type'] . '|' . $r['ref_no']][] = $r;
 
+        // যেসব জার্নাল ভাউচারের লাইন আছে (Dr/Cr সহ) — এগুলো নিচের acc_sync_voucher_journals() পোস্ট করে,
+        // তাই fund ledger থেকে আলাদা করে (Other Income / General Expense ধরে) বানানো হবে না।
+        $jl = [];
+        try {
+            $jq = mysqli_query($conn, "SELECT DISTINCT v.voucher_no FROM erp_vouchers v JOIN erp_voucher_lines l ON l.voucher_id = v.id WHERE v.voucher_type='JOURNAL'");
+            while ($jq && $j = mysqli_fetch_assoc($jq)) $jl[$j['voucher_no']] = true;
+        } catch (Throwable $e) { /* erp_voucher_lines table na thakle ignore */ }
+
         $keep = [];
         foreach ($groups as $k => $rows) {
             list($rt, $ref) = explode('|', $k, 2);
+            if ($rt === 'JOURNAL' && isset($jl[$ref])) continue;   // লাইনসহ জার্নাল acc_sync_voucher_journals() পোস্ট করে
             $vtype = 'FUND-' . $rt;
             $keep[$vtype . '|' . $ref] = true;
 
@@ -197,12 +206,54 @@ function acc_sync_fund_journal($conn) {
         }
 
         // fund ledger theke delete hoye jawa voucher er journal muche felo
+        // (lineshoho journal voucher er bhul FUND-JOURNAL entry o ekhane muche jay)
         $q = mysqli_query($conn, "SELECT voucher_type, ref_no FROM erp_journal_master WHERE voucher_type LIKE 'FUND-%'");
         while ($q && $m = mysqli_fetch_assoc($q)) {
             if (!isset($keep[$m['voucher_type'] . '|' . $m['ref_no']])) delete_journal($conn, $m['voucher_type'], $m['ref_no']);
         }
     } catch (Throwable $e) { /* fund table na thakle ignore */ }
+    acc_sync_voucher_journals($conn);
+}
+
+/*
+ * Journal Voucher (transaction.php?type=journal) -> সব লাইন সঠিক অ্যাকাউন্টে পোস্ট।
+ * ফান্ড হেড = Cash/Bank/MFS (1001/1002/1003), অন্য হেড = Chart of Accounts এর নিজের কোড।
+ * বারবার চালালে সমস্যা নেই: বদল না হলে বাদ দেয়, ভাউচার মুছে গেলে জার্নালও মোছে।
+ */
+function acc_sync_voucher_journals($conn) {
+    try {
+        $codes = ['CASH' => '1001', 'BANK' => '1002', 'MFS' => '1003'];
+        $fmap = []; $cmap = [];
+        $q = mysqli_query($conn, "SELECT id, account_type FROM erp_fund_accounts");
+        while ($q && $a = mysqli_fetch_assoc($q)) $fmap[(int)$a['id']] = $codes[strtoupper($a['account_type'])] ?? '1001';
+        $q = mysqli_query($conn, "SELECT id, account_code FROM erp_chart_of_accounts");
+        while ($q && $a = mysqli_fetch_assoc($q)) $cmap[(int)$a['id']] = $a['account_code'];
+
+        $keep = [];
+        $vq = mysqli_query($conn, "SELECT id, voucher_no, voucher_date, remarks FROM erp_vouchers WHERE voucher_type='JOURNAL'");
+        while ($vq && $v = mysqli_fetch_assoc($vq)) {
+            $lines = []; $sig = []; $ok = true;
+            $lq = mysqli_query($conn, "SELECT head_kind, head_id, party_id, dr_amount, cr_amount FROM erp_voucher_lines WHERE voucher_id=" . (int)$v['id'] . " ORDER BY id");
+            while ($lq && $l = mysqli_fetch_assoc($lq)) {
+                $code = ($l['head_kind'] === 'FUND') ? ($fmap[(int)$l['head_id']] ?? null) : ($cmap[(int)$l['head_id']] ?? null);
+                if ($code === null || $code === '') { $ok = false; break; }
+                $lines[] = [$code, (float)$l['dr_amount'], (float)$l['cr_amount'], (int)$l['party_id']];
+                $sig[] = [$code, $l['dr_amount'], $l['cr_amount'], $l['party_id']];
+            }
+            if (!$ok || !$lines) continue;   // লাইন নেই (পুরনো ধরন) বা হেড পাওয়া যায়নি
+            $no = $v['voucher_no']; $keep[$no] = true;
+            $narr = 'Journal ' . $no . (trim((string)$v['remarks']) !== '' ? ' - ' . mb_substr(trim($v['remarks']), 0, 100) : '')
+                  . ' [' . substr(md5(json_encode($sig) . $v['voucher_date']), 0, 8) . ']';
+            $old = mysqli_fetch_assoc(mysqli_query($conn, "SELECT narration FROM erp_journal_master WHERE voucher_type='JOURNAL' AND ref_no='" . esc($conn, $no) . "' LIMIT 1"));
+            if ($old && $old['narration'] === $narr) continue;   // বদল নেই
+            post_journal($conn, 'JOURNAL', $no, $v['voucher_date'], $narr, $lines);
+        }
+        $q = mysqli_query($conn, "SELECT ref_no FROM erp_journal_master WHERE voucher_type='JOURNAL'");
+        while ($q && $m = mysqli_fetch_assoc($q)) {
+            if (!isset($keep[$m['ref_no']])) delete_journal($conn, 'JOURNAL', $m['ref_no']);
+        }
+    } catch (Throwable $e) { /* erp_voucher_lines টেবিল না থাকলে বাদ */ }
 }
 
 // Report page load hole auto sync (sales/purchase hook e ACC_NO_AUTOSYNC define kore eta bondho rakha hoy)
-if (!defined('ACC_NO_AUTOSYNC')) { acc_sync_fund_journal($conn); }
+if (!defined('ACC_NO_AUTOSYNC')) { acc_sync_fund_journal($conn); acc_sync_voucher_journals($conn); }

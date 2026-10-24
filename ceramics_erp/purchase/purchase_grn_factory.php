@@ -347,7 +347,7 @@ if (!$show_form) {
     $res = mysqli_query($conn, "SELECT g.id, g.grn_no, g.grn_date, g.branch_name, g.labor_charge, g.discount_amount, g.payment_amount, s.supplier_name, IFNULL(t.total,0) AS items_total
         FROM erp_purchase_grn g
         LEFT JOIN erp_suppliers s ON s.id = g.supplier_id
-        LEFT JOIN (SELECT voucher_no, SUM(sqft_in * rate) AS total FROM erp_stock_ledger WHERE voucher_type='PURCHASE' GROUP BY voucher_no) t ON t.voucher_no = g.grn_no
+        LEFT JOIN (SELECT voucher_no, SUM(IF(total_value > 0, total_value, sqft_in * rate)) AS total FROM erp_stock_ledger WHERE voucher_type='PURCHASE' GROUP BY voucher_no) t ON t.voucher_no = g.grn_no
         WHERE 1=1" . branch_sql('g.branch_name') . "
         ORDER BY g.id DESC");
     while ($res && $r = mysqli_fetch_assoc($res)) {
@@ -385,7 +385,7 @@ if (!$show_form) {
     .list-table tr.selected-row td { background: #e0f2fe !important; }
     .r { text-align: right; }
     .total-row td { background: #dbebe7 !important; font-weight: bold; border-top: 2px solid #2e7d32; }
-    .filter-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px 15px; margin-bottom: 12px; }
+    .filter-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px 15px; margin-bottom: 12px; }
     .summary-wrapper { display: flex; justify-content: flex-end; margin-top: 8px; gap: 20px; }
     .summary-box { width: 390px; background: #fafafa; border: 1px solid #cbd5e1; border-radius: 4px; padding: 10px; }
     /* ডান পাশে ফিক্সড সামারি বক্স (Sales Invoice এর মতো) */
@@ -423,6 +423,12 @@ if (!$show_form) {
             <div class="form-group"><label>Supplier</label><input type="text" id="f_sup" class="form-control" oninput="runFilter()" placeholder="Search supplier.."></div>
             <div class="form-group"><label>Date From</label><input type="date" id="f_from" class="form-control" onchange="runFilter()"></div>
             <div class="form-group"><label>Date To</label><input type="date" id="f_to" class="form-control" onchange="runFilter()"></div>
+            <div class="form-group"><label>Branch</label>
+                <select id="f_branch" class="form-control" onchange="runFilter()">
+                    <option value="">All Branch</option>
+                    <?php $bopts = array_values(array_unique(array_column($rows, 'branch'))); sort($bopts);
+                    foreach ($bopts as $bo) echo '<option value="' . h($bo) . '">' . h($bo) . '</option>'; ?>
+                </select></div>
         </div>
         <table class="grid-table list-table" id="grnTable">
             <thead><tr>
@@ -432,7 +438,7 @@ if (!$show_form) {
             <tbody>
             <?php if ($rows) { $sl = 1; foreach ($rows as $r) { ?>
                 <tr class="g-row" style="cursor:pointer;" onclick="selRow(this, <?php echo $r['id']; ?>)"
-                    data-no="<?php echo h($r['no']); ?>" data-sup="<?php echo h($r['sup']); ?>" data-date="<?php echo h($r['date']); ?>">
+                    data-no="<?php echo h($r['no']); ?>" data-sup="<?php echo h($r['sup']); ?>" data-date="<?php echo h($r['date']); ?>" data-branch="<?php echo h($r['branch']); ?>" data-total="<?php echo round($r['total'], 2); ?>" data-paid="<?php echo round($r['paid'], 2); ?>" data-due="<?php echo round($r['due'], 2); ?>">
                     <td style="text-align:center;"><input type="checkbox" class="chk" onclick="event.stopPropagation(); selRow(this.closest('tr'), <?php echo $r['id']; ?>)"></td>
                     <td style="text-align:center;" class="sl"><?php echo $sl++; ?></td>
                     <td style="font-weight:bold;color:#2e7d32;"><?php echo h($r['no']); ?></td>
@@ -445,7 +451,7 @@ if (!$show_form) {
                 </tr>
             <?php } ?>
                 <tr class="total-row"><td colspan="6" style="text-align:center;color:#2e7d32;">Grand Total</td>
-                    <td class="r"><?php echo number_format($sum_total, 2); ?></td><td class="r"><?php echo number_format($sum_paid, 2); ?></td><td class="r"><?php echo number_format($sum_due, 2); ?></td></tr>
+                    <td class="r" id="gt_total"><?php echo number_format($sum_total, 2); ?></td><td class="r" id="gt_paid"><?php echo number_format($sum_paid, 2); ?></td><td class="r" id="gt_due"><?php echo number_format($sum_due, 2); ?></td></tr>
             <?php } else echo "<tr><td colspan='9' style='text-align:center;padding:15px;color:#777;'>কোনো GRN পাওয়া যায়নি। New চাপুন।</td></tr>"; ?>
             </tbody>
         </table>
@@ -469,14 +475,19 @@ function delSel()   {
     if (confirm('GRN মুছে ফেলতে চান? স্টক ও সাপ্লায়ারের হিসাবও সংশোধিত হবে।')) { document.getElementById('delId').value = selId; document.getElementById('delForm').submit(); }
 }
 function runFilter() {
-    var no = f_no.value.toUpperCase().trim(), su = f_sup.value.toUpperCase().trim(), from = f_from.value, to = f_to.value, sl = 1;
+    var no = f_no.value.toUpperCase().trim(), su = f_sup.value.toUpperCase().trim(), from = f_from.value, to = f_to.value, br = f_branch.value, sl = 1, tt = 0, tp = 0, td = 0;
     document.querySelectorAll('.g-row').forEach(function (r) {
         var ok = true, d = r.getAttribute('data-date');
         if (no && r.getAttribute('data-no').toUpperCase().indexOf(no) === -1) ok = false;
         if (su && r.getAttribute('data-sup').toUpperCase().indexOf(su) === -1) ok = false;
+        if (br && r.getAttribute('data-branch') !== br) ok = false;
         if (from && d < from) ok = false; if (to && d > to) ok = false;
-        r.style.display = ok ? '' : 'none'; if (ok) r.querySelector('.sl').textContent = sl++;
+        r.style.display = ok ? '' : 'none';
+        if (ok) { r.querySelector('.sl').textContent = sl++; tt += parseFloat(r.getAttribute('data-total')) || 0; tp += parseFloat(r.getAttribute('data-paid')) || 0; td += parseFloat(r.getAttribute('data-due')) || 0; }
     });
+    var f = function (n) { return n.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2}); };
+    var a = document.getElementById('gt_total'), b = document.getElementById('gt_paid'), c = document.getElementById('gt_due');
+    if (a) a.textContent = f(tt); if (b) b.textContent = f(tp); if (c) c.textContent = f(td);
 }
 </script>
 

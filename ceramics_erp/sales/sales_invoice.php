@@ -305,6 +305,15 @@ if (!$pay_rows) $pay_rows[] = ['acc' => $sel_account, 'amt' => ''];
     .sup-modal { display: none; position: fixed; z-index: 9999; left:0; top:0; width:100%; height:100%; background: rgba(0,0,0,.4); padding-top: 100px; box-sizing: border-box; }
     .sup-modal-content { background: #fff; margin: auto; padding: 20px; border: 1px solid #cdcd39; width: 400px; border-radius: 5px; }
     .low-stock { background: #ffd6d6 !important; }
+.neg-modal { display: none; position: fixed; z-index: 10000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,.45); }
+    .neg-box { background: #fff; width: 520px; max-width: 94%; margin: 90px auto 0; border-radius: 6px; border-top: 5px solid #e65100; box-shadow: 0 6px 20px rgba(0,0,0,.3); overflow: hidden; }
+    .neg-title { padding: 14px 18px; font-size: 16px; font-weight: bold; color: #e65100; background: #fff8f0; border-bottom: 1px solid #f3d9c3; }
+    .neg-body { padding: 14px 18px; max-height: 280px; overflow-y: auto; }
+    .neg-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .neg-table th { background: #f1f5f9; padding: 6px 8px; border: 1px solid #cbd5e1; text-align: left; }
+    .neg-table td { padding: 6px 8px; border: 1px solid #dee2e6; }
+    .neg-foot { padding: 12px 18px; display: flex; gap: 10px; justify-content: flex-end; background: #f7f8fa; border-top: 1px solid #e3e6ea; }
+    .neg-warn td { background: #ffe0b2 !important; }
     input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
     input[type=number] { -moz-appearance: textfield; }
 </style>
@@ -415,6 +424,22 @@ if (!$pay_rows) $pay_rows[] = ['acc' => $sel_account, 'amt' => ''];
         <div style="margin-top:10px; display:flex; gap:5px; justify-content:flex-end;">
             <button type="button" class="btn-action" onclick="submitQuickCustomer()">Save</button>
             <button type="button" class="btn-action" onclick="closeCustomerModal()">Close</button>
+        </div>
+    </div>
+</div>
+
+<div id="negModal" class="neg-modal">
+    <div class="neg-box">
+        <div class="neg-title"><i class="fa-solid fa-triangle-exclamation"></i> "পর্যাপ্ত স্টক নেই! আপনি কি প্রি-অর্ডার নিতে চান?"</div>
+        <div class="neg-body">
+            <table class="neg-table">
+                <thead><tr><th>পণ্য</th><th style="text-align:right;width:130px;">ঘাটতি (SFT)</th></tr></thead>
+                <tbody id="negList"></tbody>
+            </table>
+        </div>
+        <div class="neg-foot">
+            <button type="button" id="negNo" class="btn-action" onclick="negCancel()"><i class="fa-solid fa-pen" style="color:#0498db;"></i> না, ঠিক করুন</button>
+            <button type="button" id="negYes" class="btn-action" style="background:#e65100;color:#fff;border:none;" onclick="negProceed()"><i class="fa-solid fa-check"></i> হ্যাঁ, সেভ করুন</button>
         </div>
     </div>
 </div>
@@ -630,8 +655,49 @@ function validateForm() {
         if (num(l.querySelector('.pay-amt').value) > 0 && !l.querySelector('.pay-acc').value) payOk = false;
     });
     if (!payOk) { alert('পেমেন্টের জন্য ক্যাশ/অ্যাকাউন্ট টাইপ সিলেক্ট করুন!'); return false; }
+
+    // নেগেটিভ সেল অনুমোদিত পণ্যে স্টকের বেশি বিক্রি হলে কনফার্মেশন
+    if (!window.negConfirmed) {
+        var neg = [];
+        document.querySelectorAll('#grnItemsEntryTable tbody tr').forEach(function(r) {
+            r.classList.remove('neg-warn');
+            var pid = r.querySelector("input[name='product_id[]']").value;
+            var q = num(r.querySelector('.grn-qty').value), st = num(r.querySelector('.grn-current-stock').value);
+            if (pid && r.getAttribute('data-neg') === '1' && q - st > 0.01) {
+                neg.push({ row: r, name: r.querySelector('.grn-prod-input').value, short: q - st });
+            }
+        });
+        if (neg.length) {
+            var tb = document.getElementById('negList'); tb.innerHTML = '';
+            neg.forEach(function(n) {
+                n.row.classList.add('neg-warn');
+                var tr = document.createElement('tr'), a = document.createElement('td'), b = document.createElement('td');
+                a.textContent = n.name; a.style.fontWeight = 'bold';
+                b.textContent = '-' + n.short.toFixed(2); b.style.cssText = 'text-align:right;color:#d32f2f;font-weight:bold;';
+                tr.appendChild(a); tr.appendChild(b); tb.appendChild(tr);
+            });
+            document.getElementById('negYes').disabled = false;
+            document.getElementById('negModal').style.display = 'block';
+            document.getElementById('negNo').focus();   // Enter চাপলে "না" হবে, ভুলে সেভ হবে না
+            return false;
+        }
+    }
     return true;
 }
+
+function negCancel() { document.getElementById('negModal').style.display = 'none'; }
+function negProceed() {
+    document.getElementById('negYes').disabled = true;   // ডাবল ক্লিক বন্ধ
+    window.negConfirmed = true;
+    var f = document.getElementById('invoiceForm');
+    var h = document.createElement('input');
+    h.type = 'hidden'; h.name = 'save_invoice'; h.value = '1';   // form.submit() এ বাটনের নাম যায় না, তাই হিডেন ইনপুট
+    f.appendChild(h);
+    f.submit();
+}
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && document.getElementById('negModal').style.display === 'block') negCancel();
+});
 
 // ---- Enter চাপলে Save হবে না, পরের ঘরে যাবে ----
 (function () {
