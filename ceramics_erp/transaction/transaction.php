@@ -342,6 +342,19 @@ if (($_GET['action'] ?? '') === 'print') {
     $pid = (int)($_GET['id'] ?? 0);
     $v = mysqli_fetch_assoc(mysqli_query($conn, "$sel WHERE v.id=$pid AND v.voucher_type='$vt'"));
     if (!$v) die('ভাউচার পাওয়া যায়নি');
+    // ব্রাঞ্চ-ওয়াইজ হেডিং: ভাউচার যে ইউজার বানিয়েছে তার ব্রাঞ্চ; না পেলে চলতি ইউজারের ব্রাঞ্চ; তাও না থাকলে কোম্পানির নাম
+    $co = []; $hn = 'Uttara Builders'; $hp = '';
+    try {
+        include_once('../Settings/settings_lib.php'); $co = company_info($conn);
+        $hn = trim($co['company_name'] ?? '') ?: $hn; $hp = trim($co['mobile'] ?? '') ?: trim($co['phone'] ?? '');
+        $bn = '';
+        $bs = $conn->prepare("SELECT br.branch_name FROM erp_users u JOIN erp_branches br ON br.id = u.branch_id WHERE u.id = ?");
+        $cb = (int)($v['created_by'] ?? 0); $bs->bind_param('i', $cb); $bs->execute();
+        $bn = (string)($bs->get_result()->fetch_assoc()['branch_name'] ?? ''); $bs->close();
+        if ($bn === '' && function_exists('current_branch')) { $cbr = current_branch(); if (is_array($cbr) && ($cbr['name'] ?? '') !== '__no_branch__') $bn = (string)($cbr['name'] ?? ''); }
+        $bi = $bn !== '' ? branch_info($conn, $bn) : null;
+        if ($bi) { $hn = trim($bi['branch_name'] ?? '') ?: $hn; $hp = trim($bi['phone'] ?? '') ?: $hp; }
+    } catch (Throwable $e) { }
     $particular = $v['party_name'] ?: ($v['head_name'] ?: ($type === 'transfer' ? $v['account_name'] . ' → ' . $v['to_name'] : '-'));
     $jlines = [];
     if ($type === 'journal') {
@@ -363,7 +376,7 @@ if (($_GET['action'] ?? '') === 'print') {
  .sig{display:flex;justify-content:space-between;margin-top:70px}.sig div{border-top:1px solid #333;width:170px;text-align:center;padding-top:5px;font-size:12px}
  @media print{.np{display:none}}
 </style></head><body onload="window.print()">
-<div class="hd"><h2>Uttara Builders</h2><div class="tt"><?php echo h($c['t']); ?></div></div>
+<div class="hd"><h2><?php echo h($hn); ?></h2><?php if ($hp !== '') echo '<div style="font-size:12px;color:#555;">Phone: ' . h($hp) . '</div>'; ?><div class="tt"><?php echo h($c['t']); ?></div></div>
 <table>
  <tr><td class="l">Voucher No</td><td><b><?php echo h($v['voucher_no']); ?></b></td></tr>
  <tr><td class="l">Date</td><td><?php echo date('d-M-Y', strtotime($v['voucher_date'])); ?></td></tr>

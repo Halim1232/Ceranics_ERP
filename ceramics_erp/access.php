@@ -195,3 +195,4 @@ function branch_guard_wh($wid, $json = false) {
     $st->bind_param("ii", $w, $bi); $st->execute();
     if (!$st->get_result()->num_rows) pa_deny($json);
 }
+require_once __DIR__ . '/branch_lib.php';

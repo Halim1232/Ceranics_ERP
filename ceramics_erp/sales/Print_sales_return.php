@@ -32,6 +32,25 @@ $mr = mysqli_query($conn, "SELECT r.*, c.customer_name, c.phone AS c_phone, c.ad
                            FROM erp_sales_return r LEFT JOIN erp_customers c ON c.id = r.customer_id WHERE r.id = $rid" . branch_sql('r.branch_name') . " LIMIT 1");
 $ret = $mr ? mysqli_fetch_assoc($mr) : null;
 if (!$ret) { die("কোনো Sales Return রেকর্ড পাওয়া যায়নি!"); }
+// ===== ব্রাঞ্চ-ওয়াইজ হেডিং: ব্রাঞ্চের নাম/ঠিকানা/ফোন থাকলে কোম্পানির জায়গায় বসে =====
+$__br = function_exists('branch_info') ? branch_info($conn, $ret['branch_name'] ?? '') : null;
+if ($__br) {
+    $co_name = trim($__br['branch_name'] ?? '') ?: $co_name;
+    $co_lines = [];
+    $__ad = trim($__br['address'] ?? '') ?: trim($co['address'] ?? '');
+    if ($__ad !== '') $co_lines[] = $__ad;
+    $__ph = trim($__br['phone'] ?? '') ?: implode(', ', array_filter([trim($co['phone'] ?? ''), trim($co['mobile'] ?? '')]));
+    $c2 = [];
+    if ($__ph !== '') $c2[] = 'Mobile: ' . $__ph;
+    if (trim($co['email'] ?? '') !== '')   $c2[] = 'Email: ' . trim($co['email']);
+    if (trim($co['website'] ?? '') !== '') $c2[] = trim($co['website']);
+    if ($c2) $co_lines[] = implode(' | ', $c2);
+    $c3 = [];
+    if (trim($co['bin_no'] ?? '') !== '')        $c3[] = 'BIN: ' . trim($co['bin_no']);
+    if (trim($co['trade_license'] ?? '') !== '') $c3[] = 'Trade License: ' . trim($co['trade_license']);
+    if ($c3) $co_lines[] = implode(' | ', $c3);
+}
+
 $ret_no  = $ret['return_no'];
 $ret_noe = mysqli_real_escape_string($conn, $ret_no);
 

@@ -40,6 +40,25 @@ if (!$challan) { die("Challan Record Not Found!"); }
 $ib = mysqli_fetch_assoc(mysqli_query($conn, "SELECT branch_name FROM sales_invoice_master WHERE Invoice_no='" . mysqli_real_escape_string($conn, (string)$challan['invoice_no']) . "' LIMIT 1"));
 branch_guard($ib['branch_name'] ?? '');
 $challan['branch_name'] = $ib['branch_name'] ?? '';
+// ===== ব্রাঞ্চ-ওয়াইজ হেডিং: ব্রাঞ্চের নাম/ঠিকানা/ফোন থাকলে কোম্পানির জায়গায় বসে =====
+$__br = function_exists('branch_info') ? branch_info($conn, $challan['branch_name']) : null;
+if ($__br) {
+    $co_name = trim($__br['branch_name'] ?? '') ?: $co_name;
+    $co_lines = [];
+    $__ad = trim($__br['address'] ?? '') ?: trim($co['address'] ?? '');
+    if ($__ad !== '') $co_lines[] = $__ad;
+    $__ph = trim($__br['phone'] ?? '') ?: implode(', ', array_filter([trim($co['phone'] ?? ''), trim($co['mobile'] ?? '')]));
+    $c2 = [];
+    if ($__ph !== '') $c2[] = 'Mobile: ' . $__ph;
+    if (trim($co['email'] ?? '') !== '')   $c2[] = 'Email: ' . trim($co['email']);
+    if (trim($co['website'] ?? '') !== '') $c2[] = trim($co['website']);
+    if ($c2) $co_lines[] = implode(' | ', $c2);
+    $c3 = [];
+    if (trim($co['bin_no'] ?? '') !== '')        $c3[] = 'BIN: ' . trim($co['bin_no']);
+    if (trim($co['trade_license'] ?? '') !== '') $c3[] = 'Trade License: ' . trim($co['trade_license']);
+    if ($c3) $co_lines[] = implode(' | ', $c3);
+}
+
 $wh_show = '';
 try {
     if (!empty($challan['warehouse_id'])) {

@@ -8,7 +8,7 @@ $bdir = dirname(__DIR__) . '/backups';
 
 // Pure-PHP SQL dump (mysqldump/exec er upor nirbhor kore na). Tables + data; view/trigger/procedure ashe na.
 function st_dump($conn, $out) {
-    $out("-- Backup of ceramics_erp\n-- Generated: " . date('Y-m-d H:i:s') . "\n-- Restore: phpMyAdmin > Import\n\nSET NAMES utf8mb4;\nSET FOREIGN_KEY_CHECKS=0;\n\n");
+    $out("-- Backup of sohoj_erp\n-- Generated: " . date('Y-m-d H:i:s') . "\n-- Restore: phpMyAdmin > Import\n\nSET NAMES utf8mb4;\nSET FOREIGN_KEY_CHECKS=0;\n\n");
     $tables = [];
     $r = mysqli_query($conn, "SHOW FULL TABLES WHERE Table_type='BASE TABLE'");
     while ($row = mysqli_fetch_row($r)) $tables[] = $row[0];
@@ -33,7 +33,7 @@ function st_dump($conn, $out) {
     $out("SET FOREIGN_KEY_CHECKS=1;\n");
 }
 
-function valid_backup_name($n) { return (bool)preg_match('/^ceramics_erp_\d{8}_\d{6}\.sql$/', $n); }
+function valid_backup_name($n) { return (bool)preg_match('/^sohoj_erp_\d{8}_\d{6}\.sql$/', $n); }
 function fmt_size($b) { return $b >= 1048576 ? number_format($b / 1048576, 2) . ' MB' : number_format($b / 1024, 1) . ' KB'; }
 
 $msg = '';
@@ -41,7 +41,7 @@ $msg = '';
 // ---------- Direct download ----------
 if (isset($_GET['action']) && $_GET['action'] === 'download') {
     @set_time_limit(0);
-    $fname = 'ceramics_erp_' . date('Ymd_His') . '.sql';
+    $fname = 'sohoj_erp_' . date('Ymd_His') . '.sql';
     header('Content-Type: application/octet-stream');
     header('Content-Disposition: attachment; filename="' . $fname . '"');
     header('Cache-Control: no-store');
@@ -76,7 +76,7 @@ if (isset($_POST['save_server'])) {
         // Browser theke jeno ei folder er file shorashori na khola jay
         if (!is_file("$bdir/.htaccess")) file_put_contents("$bdir/.htaccess", "Require all denied\nDeny from all\n");
         if (!is_file("$bdir/index.html")) file_put_contents("$bdir/index.html", "");
-        $f = 'ceramics_erp_' . date('Ymd_His') . '.sql';
+        $f = 'sohoj_erp_' . date('Ymd_His') . '.sql';
         $fh = fopen("$bdir/$f", 'w');
         if (!$fh) throw new Exception('backups ফোল্ডারে লেখা যাচ্ছে না।');
         st_dump($conn, function ($s) use ($fh) { fwrite($fh, $s); });
@@ -108,10 +108,10 @@ echo $msg;
 <div class="title">Database Backup Utility</div>
 
 <div class="form-panel">
-    <div class="panel-header">Take Backup (ceramics_erp)</div>
+    <div class="panel-header">Take Backup (sohoj_erp)</div>
     <div class="panel-body" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
         <a class="btn-action btn-green" href="db_backup.php?action=download"><i class="fa-solid fa-download"></i> Download Backup (.sql)</a>
-        <form method="POST" style="margin:0" onsubmit="return confirm('সার্ভারে (ceramics_erp/backups) ব্যাকআপ সংরক্ষণ করবেন?')">
+        <form method="POST" style="margin:0" onsubmit="return confirm('সার্ভারে (sohoj_erp/backups) ব্যাকআপ সংরক্ষণ করবেন?')">
             <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">
             <button class="btn-action" name="save_server" value="1"><i class="fa-solid fa-server" style="color:#3498db"></i> Save on Server</button>
         </form>
@@ -120,7 +120,7 @@ echo $msg;
 
 <div class="alert warn">
     ⚠ ব্যাকআপ ফাইলে কাস্টমার, সাপ্লায়ার, হিসাব ও ইউজার পাসওয়ার্ড সহ <b>সব ডাটা</b> থাকে, ফাইলটি নিরাপদ জায়গায় রাখুন। শুধু এই PC তে রাখলে PC নষ্ট হলে ব্যাকআপও হারাবে, নিয়মিত পেনড্রাইভ বা ক্লাউডে কপি করুন।<br>
-    Restore করতে: phpMyAdmin &rarr; ceramics_erp &rarr; <b>Import</b> &rarr; .sql ফাইল সিলেক্ট। (Restore এ বর্তমান টেবিল মুছে ব্যাকআপের ডাটা বসে যায়, তাই সাবধানে করুন।)
+    Restore করতে: phpMyAdmin &rarr; sohoj_erp &rarr; <b>Import</b> &rarr; .sql ফাইল সিলেক্ট। (Restore এ বর্তমান টেবিল মুছে ব্যাকআপের ডাটা বসে যায়, তাই সাবধানে করুন।)
 </div>
 
 <div class="form-panel">

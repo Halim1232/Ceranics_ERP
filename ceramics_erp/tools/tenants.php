@@ -3,7 +3,7 @@
 //
 //   php tools/tenants.php create --subdomain=abc --company="ABC Tiles" --admin-user=abcadmin [--admin-pass=...] [--admin-name="Rahim"]
 //                                [--plan=1] [--cycle=Monthly|Yearly] [--months=1] [--phone=01xxx] [--email=a@b.c] [--contact="Rahim"]
-//   php tools/tenants.php adopt  --subdomain=uttara --company="Uttara Builders" --db=ceramics_erp --db-user=root [--db-pass=] [--db-host=localhost] [--plan=1] [--end=2027-01-31]
+//   php tools/tenants.php adopt  --subdomain=uttara --company="Uttara Builders" --db=sohoj_erp --db-user=root [--db-pass=] [--db-host=localhost] [--plan=1] [--end=2027-01-31]
 //   php tools/tenants.php list
 //   php tools/tenants.php suspend  abc
 //   php tools/tenants.php activate abc

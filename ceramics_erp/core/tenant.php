@@ -90,7 +90,7 @@ function tenant_boot() {
 
     // env file na thakle = ager moto single database (XAMPP te cholte thakbe)
     if (!erp_load_env()) {
-        $T = ['id' => 0, 'subdomain' => 'legacy', 'company_name' => '', 'db_host' => 'localhost', 'db_name' => 'ceramics_erp',
+        $T = ['id' => 0, 'subdomain' => 'legacy', 'company_name' => '', 'db_host' => 'localhost', 'db_name' => 'sohoj_erp',
               'db_user' => 'root', 'db_pass' => '', 'plan_id' => null, 'plan_modules' => null, 'max_users' => 0,
               'subscription_end' => null, 'grace_days' => 0, 'status' => 'Active'];
         tenant_define_constants($T, true);

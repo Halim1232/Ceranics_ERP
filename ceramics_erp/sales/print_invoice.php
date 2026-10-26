@@ -1,9 +1,5 @@
 <?php
-// ১. পিএইচপি এরর হ্যান্ডলিং ও ডাটাবেজ কানেকশন নিশ্চিত করা
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
-error_reporting(E_ALL);
-
+// print_invoice.php
 include('../auth.php'); require_page_access('sales/sales_invoice_list.php');
 include('../config.php');
 
@@ -41,7 +37,6 @@ $inv_raw = mysqli_fetch_assoc($master_res);
 
 // ৫. [সবচেয়ে গুরুত্বপূর্ণ]: কেস-সেন্সিটিভ কলামগুলোর নাম সেফলি ম্যাপ করা (স্ক্রিনশটের ওয়ার্নিং ফিক্স)
 $inv = array_change_key_case($inv_raw, CASE_LOWER);
-branch_guard($inv['branch_name'] ?? '');   // অন্য ব্রাঞ্চের ইনভয়েস প্রিন্ট করা যাবে না
 $cust_res = mysqli_query($conn, "SELECT $select_customer_fields FROM erp_customers C WHERE C.id = " . intval($inv['customer_id']));
 if($cust_row = mysqli_fetch_assoc($cust_res)){
     $inv['customer_name'] = $cust_row['customer_name'];
@@ -55,13 +50,16 @@ $invoice_date = $inv['invoice_date'] ?? $inv['invoice_date'] ?? date('Y-m-d');
 // ===== Company profile (Settings > Company Profile Setup) =====
 $co = [];
 try { include_once('../Settings/settings_lib.php'); $co = company_info($conn); } catch (Throwable $e) { $co = []; }
-$co_name   = trim($co['company_name'] ?? '') ?: 'Uttara Builders';
+$co = branch_apply($conn, $co, $inv['branch_name'] ?? '');
+$__br = function_exists('branch_info') ? branch_info($conn, $inv['branch_name'] ?? '') : null;   // branch-wise heading
+$co_name   = trim($__br['branch_name'] ?? '') ?: (trim($co['company_name'] ?? '') ?: 'Uttara Builders');
 $co_tag    = trim($co['tagline'] ?? '');
 $co_footer = trim($co['invoice_footer'] ?? '');
 $co_lines  = [];
 if (trim($co['address'] ?? '') !== '') $co_lines[] = trim($co['address']);
 $c2 = [];
 $ph = implode(', ', array_filter([trim($co['phone'] ?? ''), trim($co['mobile'] ?? '')]));
+if (trim($__br['phone'] ?? '') !== '') $ph = trim($__br['phone']);   // branch er phone thakle seta
 if ($ph !== '') $c2[] = 'Mobile: ' . $ph;
 if (trim($co['email'] ?? '') !== '')   $c2[] = 'Email: ' . trim($co['email']);
 if (trim($co['website'] ?? '') !== '') $c2[] = trim($co['website']);
@@ -123,9 +121,11 @@ $paid     = (float)($inv['payment_amount'] ?? 0);
 $net_bal  = (float)($inv['net_balance'] ?? 0);
 // (while-loop e subtotal hishab hoy, tai gross niche html er moddhe set hobe)
 
-if (!function_exists('company_images')) { function company_images($co) { return [[], []]; } }
-list($imgL, $imgR) = company_images($co);
-$right_img = $imgR ? 'x' : '';
+// ===== Right side logo / QR =====
+$right_img = '';
+foreach (['qr_path', 'qr_code_path', 'logo2_path', 'second_logo_path', 'qr_image'] as $k) {
+    if (!empty($co[$k])) { $right_img = $co[$k]; break; }
+}
 
 // ===== Branch =====
 $branch_show = trim($inv['branch_name'] ?? '');
@@ -163,22 +163,22 @@ $remarks_txt = trim((string)($inv['remarks'] ?? ''));
         /* header */
         .hdr { width: 100%; border-collapse: collapse; border-bottom: 2px solid #2b579a; margin-bottom: 8px; }
         .hdr td { vertical-align: middle; padding: 0 0 8px 0; }
-        .hdr .side { width: 190px; }
+        .hdr .side { width: 90px; }
         .hdr .side.l { text-align: left; }
         .hdr .side.r { text-align: right; }
-        .hdr .side img { max-height: 70px; max-width: 90px; margin: 0 2px; vertical-align: middle; }
+        .hdr img { max-height: 100px; max-width: 100px; }
         .hdr .mid { text-align: center; }
         .company-name { font-size: 26px; font-weight: bold; color: #2b579a; text-transform: uppercase; margin: 0; line-height: 1.1; }
         .company-details { font-size: 12px; color: #555; margin: 4px 0 0 0; }
         #qrBox { display: inline-block; width: 70px; height: 70px; }
         #qrBox img, #qrBox canvas { width: 70px !important; height: 70px !important; }
 
-        .bill-title { text-align: center; font-size: 15px; font-weight: bold; background: #2b579a; color: #fff; padding: 4px 14px; width: fit-content; margin: 0 auto 8px; border-radius: 4px; text-transform: uppercase; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        .bill-title { text-align: center; font-size: 15px; font-weight: bold; background: #2b579a; color: #fff; padding: 4px; width: 150px; margin: 0 auto 8px; border-radius: 4px; text-transform: uppercase; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
         .info-table { width: 100%; margin-bottom: 10px; font-size: 13px; border-collapse: collapse; }
         .info-table td { padding: 3px 0; vertical-align: top; }
 
-        .item-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+        .item-table { width: 100%; border-collapse: collapse; font-size: 13px; }
         .item-table th { background: #cbd5e1; color: #000; border: 1px solid #94a3b8; padding: 6px; font-weight: bold; text-align: left; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         .item-table td { border: 1px solid #cbd5e1; padding: 6px; }
         .item-table tr { page-break-inside: avoid; }
@@ -218,7 +218,7 @@ $remarks_txt = trim((string)($inv['remarks'] ?? ''));
         <table class="hdr">
             <tr>
                 <td class="side l">
-                    <?php foreach ($imgL as $p): ?><img src="../<?php echo htmlspecialchars($p); ?>" alt="logo"><?php endforeach; ?>
+                    <?php if (!empty($co['logo_path'])): ?><img src="../<?php echo htmlspecialchars($co['logo_path']); ?>" alt="logo"><?php endif; ?>
                 </td>
                 <td class="mid">
                     <h1 class="company-name"><?php echo htmlspecialchars($co_name); ?></h1>
@@ -226,8 +226,8 @@ $remarks_txt = trim((string)($inv['remarks'] ?? ''));
                     <p class="company-details"><?php echo implode('<br>', array_map('htmlspecialchars', $co_lines)); ?></p>
                 </td>
                 <td class="side r">
-                    <?php if ($imgR): ?>
-                        <?php foreach ($imgR as $p): ?><img src="../<?php echo htmlspecialchars($p); ?>" alt="img"><?php endforeach; ?>
+                    <?php if ($right_img !== ''): ?>
+                        <img src="../<?php echo htmlspecialchars($right_img); ?>" alt="qr">
                     <?php else: ?>
                         <div id="qrBox"></div>
                     <?php endif; ?>
@@ -277,7 +277,7 @@ $remarks_txt = trim((string)($inv['remarks'] ?? ''));
                     <th style="text-align: center; width: 50px;">Box</th>
                     <th style="text-align: center; width: 50px;">Pcs</th>
                     <th style="text-align: right; width: 80px;">Total QTY</th>
-                    <th style="text-align: right; width: 70px;">Price</th>
+                    <th style="text-align: right; width: 70px;">Rate</th>
                     <th style="text-align: right; width: 95px;">Total Amount</th>
                 </tr>
             </thead>

@@ -3,7 +3,7 @@ include('auth.php');
 include('config.php');
 
 // সফটওয়্যারের নাম + কোম্পানির নাম (প্রতিটি tenant নিজের erp_company_profile থেকে)
-if (!defined('ERP_APP_NAME')) define('ERP_APP_NAME', 'Ceramics ERP');
+if (!defined('ERP_APP_NAME')) define('ERP_APP_NAME', 'Sohoj ERP');
 if (!function_exists('erp_company_name')) {
     function erp_company_name($c) {
         static $n = null;
@@ -15,6 +15,87 @@ if (!function_exists('erp_company_name')) {
     }
 }
 $co_name = erp_company_name($conn);
+
+// ---- role wise menu permission ----
+$role       = current_role();
+$is_super   = ($role === 'superadmin');
+$ceil       = pa_ceiling_ids();
+$all_access = $is_super || ($role === 'admin' && $ceil === null);
+$allowed = [];
+if (!$all_access) {
+    if ($role === 'admin') {
+        $allowed = $ceil;
+    } elseif ($role !== '') {
+        $ps = $conn->prepare("SELECT menu_id FROM erp_role_permissions WHERE role_name = ?");
+        $ps->bind_param("s", $role); $ps->execute();
+        $pr = $ps->get_result();
+        while ($x = $pr->fetch_assoc()) {
+            $mid = (int)$x['menu_id'];
+            if ($ceil === null || isset($ceil[$mid])) $allowed[$mid] = true;
+        }
+    }
+}
+$rowsAll = []; $hasKids = [];
+$mr = $conn->query("SELECT * FROM erp_menus WHERE status = 'Active' ORDER BY order_no ASC");
+while ($mr && $m = $mr->fetch_assoc()) {
+    $rowsAll[] = $m;
+    if ((int)$m['parent_id'] !== 0) $hasKids[(int)$m['parent_id']] = true;
+}
+$all = []; $children = [];
+foreach ($rowsAll as $m) {
+    $mid = (int)$m['id'];
+    if ((int)$m['parent_id'] === 0) { $all[] = $m; }
+    elseif ($all_access || isset($allowed[$mid])) { $children[(int)$m['parent_id']][] = $m; }
+}
+if (!$all_access) {
+    $all = array_values(array_filter($all, function ($p) use ($hasKids, $children, $allowed) {
+        $pid = (int)$p['id'];
+        return isset($hasKids[$pid]) ? !empty($children[$pid]) : isset($allowed[$pid]);
+    }));
+}
+// ---- end ----
+
+// ---- হেডারে একটাই নাম ----
+// একাধিক ব্রাঞ্চ থাকলে যে ব্রাঞ্চে লগইন করেছে তার নাম (যেমন Uttara Builders / Uttara Marble);
+// একটা বা কোনো ব্রাঞ্চ না থাকলে (যেমন Nakshi Tiles) কোম্পানির নাম। সব ব্রাঞ্চ দেখার ইউজারেরও কোম্পানির নাম।
+$hdr_name = $co_name;
+try {
+    $bc = 0;
+    try { $bq = mysqli_query($conn, "SELECT COUNT(*) FROM erp_branches WHERE status = 'Active'"); $bc = (int)mysqli_fetch_row($bq)[0]; }
+    catch (Throwable $e1) { $bq = mysqli_query($conn, "SELECT COUNT(*) FROM erp_branches"); $bc = (int)mysqli_fetch_row($bq)[0]; }
+    if ($bc > 1) {
+        // current_branch() array ফেরত দেয় (['id'=>, 'name'=>]) বা null (সব ব্রাঞ্চ)
+        $cb = function_exists('current_branch') ? current_branch() : null;
+        if (is_array($cb) && !empty($cb['name']) && $cb['name'] !== '__no_branch__') $hdr_name = trim((string)$cb['name']);
+    }
+} catch (Throwable $e) {}
+
+// ---- দ্রুত বোতাম (যে ইউজারের মেনু অনুমতি আছে শুধু সেগুলো) ----
+$quick_defs = [
+    ['label' => 'Sales Invoice',    'icon' => 'fa-file-invoice-dollar', 'pat' => ['sales invoice', 'sales_invoice']],
+    ['label' => 'Delivery Challan', 'icon' => 'fa-truck-fast',          'pat' => ['delivery challan', 'delivery_challan']],
+    ['label' => 'Collection',       'icon' => 'fa-hand-holding-dollar', 'pat' => ['type=collection', 'collection']],
+    ['label' => 'Expenses',         'icon' => 'fa-receipt',             'pat' => ['type=expense', 'expense'], 'fallback' => 'transaction/transaction.php?type=expense'],
+];
+$quick = []; $found = false;
+foreach ($quick_defs as $qd) {
+    foreach ($rowsAll as $m) {
+        if ((int)$m['parent_id'] === 0) continue;
+        $hay = strtolower($m['route_link'] . ' ' . $m['menu_name']);
+        $hit = false;
+        foreach ($qd['pat'] as $p) { if (strpos($hay, $p) !== false) { $hit = true; break; } }
+        if ($hit && ($all_access || isset($allowed[(int)$m['id']]))) {
+            $quick[] = ['label' => $qd['label'], 'icon' => $qd['icon'], 'tab' => 'tab_sub_' . (int)$m['id'], 'name' => $m['menu_name'], 'url' => $m['route_link']];
+            $found = true;
+            break;
+        }
+    }
+    // মেনুতে এন্ট্রি না থাকলে নির্দিষ্ট URL (শুধু পুরো অ্যাক্সেসের ইউজারের জন্য)
+    if (empty($found) && !empty($qd['fallback']) && $all_access) {
+        $quick[] = ['label' => $qd['label'], 'icon' => $qd['icon'], 'tab' => 'tab_quick_' . strtolower($qd['label']), 'name' => $qd['label'], 'url' => $qd['fallback']];
+    }
+    $found = false;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -25,7 +106,7 @@ $co_name = erp_company_name($conn);
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 <style>
     :root {
-        --green: #2e7d32; --green-dark: #1b5e20; --accent: #1abc9c;
+        --green: #002a79; --green-dark: #00796b; --accent: #00796b;
         --side: #1f2d3d; --side-2: #172230; --side-hover: #2a3b4f;
         --text: #cfd8dc; --border: #2c3e50;
     }
@@ -33,7 +114,7 @@ $co_name = erp_company_name($conn);
     body { display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: #f4f6f9; }
 
     /* হেডার */
-    .erp-header { background: linear-gradient(90deg, var(--green-dark), var(--green)); color: #fff; height: 48px; padding: 0 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 6px rgba(0,0,0,.2); z-index: 10; }
+    .erp-header { background: linear-gradient(90deg, var(--green-dark), var(--green)); color: #ffffff; height: 48px; padding: 0 16px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 2px 6px rgba(0,0,0,.2); z-index: 10; }
     .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .5px; font-size: 15px; }
     .toggle-btn { background: rgba(255,255,255,.15); border: none; color: #fff; width: 32px; height: 32px; border-radius: 4px; cursor: pointer; font-size: 15px; }
     .toggle-btn:hover { background: rgba(255,255,255,.28); }
@@ -112,18 +193,43 @@ $co_name = erp_company_name($conn);
     .db-card .ico { width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 19px; color: #fff; }
     .card-label { font-size: 11px; font-weight: 700; color: #78909c; text-transform: uppercase; letter-spacing: .4px; }
     .card-value { font-size: 20px; font-weight: 700; color: #263238; margin-top: 3px; }
+
+    /* হেডার: বাঁয়ে সফটওয়্যার (সাইডবারের সমান জায়গা) + কোম্পানি/ব্রাঞ্চ, ডানে দ্রুত বোতাম + প্রোফাইল */
+    .erp-header { padding: 0 16px 0 0; }
+    .brand-side { width: 230px; flex-shrink: 0; display: flex; align-items: center; gap: 10px; padding-left: 16px; font-weight: 800; letter-spacing: .5px; font-size: 22px; white-space: nowrap; }
+    .brand-co { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding-left: 14px; font-size: 14px; white-space: nowrap; overflow: hidden; }
+    .brand-co .co { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; border-left: 1px solid rgba(255,255,255,.5); padding-left: 12px; }
+    .quick { display: flex; align-items: center; gap: 6px; margin-right: 12px; }
+    .qk { display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,.14); color: #fff; border: 1px solid rgba(255,255,255,.28); border-radius: 5px; padding: 6px 11px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .qk:hover { background: rgba(255,255,255,.3); }
+    .qk i { font-size: 13px; }
+    @media (max-width: 1250px) { .qk span { display: none; } .qk { padding: 7px 10px; } }
+    @media (max-width: 800px) { .brand-co .co { display: none; } }
 </style>
 
 </head>
 <body>
     <div class="erp-header">
-    <div class="brand">
+    <div class="brand-side">
         <button class="toggle-btn" onclick="toggleSidebar()" title="মেনু ছোট/বড়"><i class="fa fa-bars"></i></button>
-        <span><?php echo htmlspecialchars(ERP_APP_NAME, ENT_QUOTES); ?></span>
-        <?php if ($co_name !== '') { ?>
-        <span style="font-weight:400;opacity:.9;border-left:1px solid rgba(255,255,255,.5);padding-left:10px;"><?php echo htmlspecialchars($co_name, ENT_QUOTES); ?></span>
+        <img src="assets/sohojerp_logo.svg" alt="SohojERP" style="height:55px;vertical-align:middle;margin-right:5px;">
+    </div>
+    <div class="brand-co">
+        <?php if ($hdr_name !== '') { ?><span class="co"><?php echo htmlspecialchars($hdr_name, ENT_QUOTES); ?></span><?php } ?>
+    </div>
+    <?php if ($quick) { ?>
+    <div class="quick">
+        <?php foreach ($quick as $qk) { ?>
+        <button type="button" class="qk" title="<?php echo htmlspecialchars($qk['label'], ENT_QUOTES); ?>"
+                data-qtab="<?php echo htmlspecialchars($qk['tab'], ENT_QUOTES); ?>"
+                data-name="<?php echo htmlspecialchars($qk['name'], ENT_QUOTES); ?>"
+                data-url="<?php echo htmlspecialchars($qk['url'], ENT_QUOTES); ?>"
+                onclick="openTab(this.dataset.qtab, this.dataset.name, this.dataset.url)">
+            <i class="fa <?php echo htmlspecialchars($qk['icon'], ENT_QUOTES); ?>"></i><span><?php echo htmlspecialchars($qk['label'], ENT_QUOTES); ?></span>
+        </button>
         <?php } ?>
     </div>
+    <?php } ?>
     <div class="user-info">
         <div class="user-menu" id="userMenu">
             <button type="button" class="user-btn" onclick="toggleUserMenu(event)">
@@ -151,44 +257,7 @@ $co_name = erp_company_name($conn);
                 </a>
             </li>
             <?php
-            // ---- role wise menu permission ----
-$role       = current_role();
-$is_super   = ($role === 'superadmin');
-$ceil       = pa_ceiling_ids();
-$all_access = $is_super || ($role === 'admin' && $ceil === null);
-$allowed = [];
-if (!$all_access) {
-    if ($role === 'admin') {
-        $allowed = $ceil;
-    } elseif ($role !== '') {
-        $ps = $conn->prepare("SELECT menu_id FROM erp_role_permissions WHERE role_name = ?");
-        $ps->bind_param("s", $role); $ps->execute();
-        $pr = $ps->get_result();
-        while ($x = $pr->fetch_assoc()) {
-            $mid = (int)$x['menu_id'];
-            if ($ceil === null || isset($ceil[$mid])) $allowed[$mid] = true;
-        }
-    }
-}
-$rowsAll = []; $hasKids = [];
-$mr = $conn->query("SELECT * FROM erp_menus WHERE status = 'Active' ORDER BY order_no ASC");
-while ($mr && $m = $mr->fetch_assoc()) {
-    $rowsAll[] = $m;
-    if ((int)$m['parent_id'] !== 0) $hasKids[(int)$m['parent_id']] = true;
-}
-$all = []; $children = [];
-foreach ($rowsAll as $m) {
-    $mid = (int)$m['id'];
-    if ((int)$m['parent_id'] === 0) { $all[] = $m; }
-    elseif ($all_access || isset($allowed[$mid])) { $children[(int)$m['parent_id']][] = $m; }
-}
-if (!$all_access) {
-    $all = array_values(array_filter($all, function ($p) use ($hasKids, $children, $allowed) {
-        $pid = (int)$p['id'];
-        return isset($hasKids[$pid]) ? !empty($children[$pid]) : isset($allowed[$pid]);
-    }));
-}
-// ---- end ----
+            
 
             foreach ($all as $parent) {
                 $pid   = (int)$parent['id'];

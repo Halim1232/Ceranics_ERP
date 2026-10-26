@@ -3,7 +3,7 @@
 //   schema/template_schema.sql : shob table er structure (kono data na)
 //   schema/template_seed.sql   : shudhu reference data (menu, role, permission, chart of accounts, fund account)
 //
-//   php tools/build_template.php --db=ceramics_erp --user=root [--pass=] [--host=localhost] [--seed=erp_menus,erp_roles,...]
+//   php tools/build_template.php --db=sohoj_erp --user=root [--pass=] [--host=localhost] [--seed=erp_menus,erp_roles,...]
 //
 // Customer, product, invoice, stock ityadi KONO transaction data ei file e jabe na.
 // Chalanor por schema/template_seed.sql ekbar chokh bulie dekhe nin (jemon menu te duplicate/vul thakle age source e thik korun).
@@ -17,7 +17,7 @@ function cli_parse(array $args) {
 }
 $o = cli_parse(array_slice($argv, 1));
 $host = $o['host'] ?? 'localhost';
-$db   = $o['db'] ?? 'ceramics_erp';
+$db   = $o['db'] ?? 'sohoj_erp';
 $user = $o['user'] ?? 'root';
 $pass = $o['pass'] ?? '';
 $seedTables = array_filter(array_map('trim', explode(',', $o['seed'] ?? 'erp_menus,erp_roles,erp_chart_of_accounts,erp_fund_accounts')));

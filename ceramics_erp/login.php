@@ -90,7 +90,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title><?php echo htmlspecialchars((function_exists('erp_company_name') && erp_company_name($conn) !== '' ? erp_company_name($conn) . ' | ' : '') . (defined('ERP_APP_NAME') ? ERP_APP_NAME : 'Ceramics ERP'), ENT_QUOTES); ?> - Login</title>
+    <title><?php echo htmlspecialchars((function_exists('erp_company_name') && erp_company_name($conn) !== '' ? erp_company_name($conn) . ' | ' : '') . (defined('ERP_APP_NAME') ? ERP_APP_NAME : 'Sohoj ERP'), ENT_QUOTES); ?> - Login</title>
     <style>
         body { font-family: 'Segoe UI', Arial, sans-serif; background: #fafafa; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
         .login-box { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.08); border-top: 5px solid #28a745; width: 320px; }
@@ -106,7 +106,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 <body>
     <div class="login-box">
         <h2><?php $__cn = function_exists('erp_company_name') ? erp_company_name($conn) : ''; echo htmlspecialchars($__cn !== '' ? $__cn : (defined('TENANT_NAME') ? TENANT_NAME : ''), ENT_QUOTES); ?></h2>
-        <div style="text-align:center;color:#888;font-size:12px;margin:-14px 0 18px;"><?php echo htmlspecialchars(defined('ERP_APP_NAME') ? ERP_APP_NAME : 'Ceramics ERP', ENT_QUOTES); ?></div>
+        <div style="text-align:center;color:#888;font-size:12px;margin:-14px 0 18px;"><?php echo htmlspecialchars(defined('ERP_APP_NAME') ? ERP_APP_NAME : 'Sohoj ERP', ENT_QUOTES); ?></div>
         <?php if ($error != "") { echo '<div class="error-msg">' . htmlspecialchars($error) . '</div>'; } ?>
         <form method="POST" action="">
             <input type="hidden" name="csrf_token" value="<?php echo $_SESSION['csrf_token']; ?>">

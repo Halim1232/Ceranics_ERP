@@ -1,4 +1,4 @@
--- template_schema.sql  (source db: ceramics_erp, 2026-10-17 14:22)
+-- template_schema.sql  (source db: sohoj_erp, 2026-10-17 14:22)
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS=0;
 

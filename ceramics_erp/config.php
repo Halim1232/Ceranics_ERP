@@ -2,7 +2,7 @@
 // config.php -- Multi-tenant aware.
 // Pages age-r moto-i: include('../config.php');  => $conn (mysqli) ekhon ei request er customer er database e connected.
 //   * erp_env.php thakle : subdomain dekhe master theke customer ber kore tar nijer database e connect hoy.
-//   * erp_env.php na thakle: ager moto localhost / root / ceramics_erp (XAMPP dev, kono bodol lage na).
+//   * erp_env.php na thakle: ager moto localhost / root / sohoj_erp (XAMPP dev, kono bodol lage na).
 
 // ek request e dui-bar include hole abar connect korbe na
 if (isset($conn) && $conn instanceof mysqli && defined('TENANT_ID')) { return; }
@@ -42,4 +42,4 @@ if (!function_exists('erp_company_name')) {
         return $n;
     }
 }
-if (!defined('ERP_APP_NAME')) define('ERP_APP_NAME', 'Ceramics ERP');
+if (!defined('ERP_APP_NAME')) define('ERP_APP_NAME', 'Sohoj ERP');

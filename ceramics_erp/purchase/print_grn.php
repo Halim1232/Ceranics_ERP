@@ -5,6 +5,8 @@ include('../auth.php');
 // সাধারণ GRN ও Factory GRN দুটোর প্রিন্টই এই ফাইল থেকে হয়, তাই যেকোনো একটির পারমিশন থাকলেই চলবে
 if (!page_access_allowed('purchase/purchase_grn.php') && !page_access_allowed('purchase/purchase_grn_factory.php')) pa_deny();
 include('../config.php');
+$co = []; $branch_head = '';
+try { include_once('../Settings/settings_lib.php'); $co = company_info($conn); } catch (Throwable $e) { $co = []; }
 
 if (!isset($_GET['id']) || (int)$_GET['id'] <= 0) { die("জিআরএন ভাউচার আইডি পাওয়া যায়নি!"); }
 $grn_id = (int)$_GET['id'];
@@ -40,6 +42,25 @@ $master_res = mysqli_query($conn, "SELECT g.*, s.supplier_name, s.mobile_no, s.a
 $grn = $master_res ? mysqli_fetch_assoc($master_res) : null;
 if (!$grn) { die("কোনো জিআরএন রেকর্ড পাওয়া যায়নি!"); }
 branch_guard($grn['branch_name'] ?? '');   // অন্য ব্রাঞ্চের GRN প্রিন্ট করা যাবে না
+// ===== ব্রাঞ্চ-ওয়াইজ হেডিং: ব্রাঞ্চের নাম/ঠিকানা/ফোন থাকলে কোম্পানির জায়গায় বসে =====
+$__br = function_exists('branch_info') ? branch_info($conn, $grn['branch_name'] ?? '') : null;
+if ($__br) {
+    $co_name = trim($__br['branch_name'] ?? '') ?: $co_name;
+    $co_lines = [];
+    $__ad = trim($__br['address'] ?? '') ?: trim($co['address'] ?? '');
+    if ($__ad !== '') $co_lines[] = $__ad;
+    $__ph = trim($__br['phone'] ?? '') ?: implode(', ', array_filter([trim($co['phone'] ?? ''), trim($co['mobile'] ?? '')]));
+    $c2 = [];
+    if ($__ph !== '') $c2[] = 'Mobile: ' . $__ph;
+    if (trim($co['email'] ?? '') !== '')   $c2[] = 'Email: ' . trim($co['email']);
+    if (trim($co['website'] ?? '') !== '') $c2[] = trim($co['website']);
+    if ($c2) $co_lines[] = implode(' | ', $c2);
+    $c3 = [];
+    if (trim($co['bin_no'] ?? '') !== '')        $c3[] = 'BIN: ' . trim($co['bin_no']);
+    if (trim($co['trade_license'] ?? '') !== '') $c3[] = 'Trade License: ' . trim($co['trade_license']);
+    if ($c3) $co_lines[] = implode(' | ', $c3);
+}
+
 $grn_no  = $grn['grn_no'];
 $grn_noe = mysqli_real_escape_string($conn, $grn_no);
 
